@@ -1,6 +1,7 @@
 
 # Handwritten Digit Classification (0–9)
 
+<img width="1578" height="909" alt="image" src="https://github.com/user-attachments/assets/bb9787b0-d028-45f6-8b5a-5f43ecedf400" />
 This project implements a **Convolutional Neural Network (CNN)** to classify handwritten digits (0–9) using a **combined MNIST and EMNIST Digits dataset**. The model is built with **TensorFlow/Keras** and designed for robust generalization using data augmentation and early stopping.
 
 
@@ -78,10 +79,3 @@ python train_model.py
 - Built efficient tf.data pipelines
 - Combined multiple datasets for better generalization
 - Applied early stopping to avoid overfitting
-
-
-## User Interface
-<img width="1917" height="913" alt="image" src="https://github.com/user-attachments/assets/50c8a7be-2e68-4592-a441-89e5d77a8d00" />
-
-
-
