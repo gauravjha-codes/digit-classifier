@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MNIST Digit Classifier</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="dot"></span>
+        <span class="brand-title">MNIST Digit Lab</span>
+      </div>
+      <span class="brand-sub">Simple demo • 0–9 classifier</span>
+    </header>
+
+    <main class="app-card">
+      <section class="intro">
+        <h1>Handwritten Digit Classifier</h1>
+        <p>
+          Draw a digit or upload an image. The model is trained on
+          <strong>MNIST</strong> handwritten digits.
+        </p>
+      </section>
+
+      <section class="panes">
+        <!-- Left: Drawing + upload -->
+        <div class="pane pane-input">
+          <div class="tabs">
+            <button class="tab active" data-tab="draw">Draw Digit</button>
+            <button class="tab" data-tab="upload">Upload Image</button>
+          </div>
+
+          <!-- Draw area -->
+          <div class="tab-content active" id="tab-draw">
+            <p class="hint">Use your mouse or touch to write a single digit.</p>
+            <div class="canvas-wrapper">
+              <canvas id="draw-canvas" width="280" height="280"></canvas>
+            </div>
+            <div class="actions-row">
+              <button id="clear-draw" class="btn secondary">Clear</button>
+              <button id="predict-draw" class="btn primary">Predict from Drawing</button>
+            </div>
+          </div>
+
+          <!-- Upload area -->
+          <div class="tab-content" id="tab-upload">
+            <p class="hint">Upload a clear image containing one digit (0–9).</p>
+            <div class="upload-box">
+              <input type="file" id="file-input" accept="image/*" />
+            </div>
+            <div class="canvas-wrapper small">
+              <canvas id="preview-canvas"></canvas>
+            </div>
+            <div class="actions-row">
+              <button id="predict-upload" class="btn primary">Predict from Image</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Result + meta -->
+        <div class="pane pane-result">
+          <h2>Prediction</h2>
+          <div class="result-card">
+            <div class="digit-display" id="digit-display">–</div>
+            <div class="meta">
+              <p id="result-text" class="result-text">No prediction yet.</p>
+              <p id="confidence-text" class="confidence-text"></p>
+            </div>
+          </div>
+
+          <div class="info">
+            <h3>About the model</h3>
+            <ul>
+              <li>Dataset: <strong>MNIST</strong> (70,000 handwritten digits)</li>
+              <li>Input size: <code>28 × 28</code> grayscale</li>
+              <li>Architecture: small CNN → softmax (10 classes)</li>
+            </ul>
+            <p class="note">
+              Dataset reference:
+              <a href="https://www.tensorflow.org/datasets/catalog/mnist" target="_blank">
+                TensorFlow Datasets — MNIST
+              </a><br>
+              <b> Devloped By <a href="https://">GAURAV JHA</a></b>
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // Tab switching
+    const tabs = document.querySelectorAll(".tab");
+    const tabContents = {
+      draw: document.getElementById("tab-draw"),
+      upload: document.getElementById("tab-upload"),
+    };
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+
+        const target = tab.dataset.tab;
+        for (const key in tabContents) {
+          tabContents[key].classList.toggle("active", key === target);
+        }
+      });
+    });
+
+    // Common result elements
+    const digitDisplay = document.getElementById("digit-display");
+    const resultText = document.getElementById("result-text");
+    const confidenceText = document.getElementById("confidence-text");
+
+    function setPredictionState(text, confidence, digit) {
+      if (digit === null || digit === undefined) {
+        digitDisplay.textContent = "–";
+      } else {
+        digitDisplay.textContent = digit;
+      }
+      resultText.textContent = text;
+      confidenceText.textContent = confidence || "";
+    }
+
+    // ========== Drawing logic ==========
+    const drawCanvas = document.getElementById("draw-canvas");
+    const dCtx = drawCanvas.getContext("2d");
+    let drawing = false;
+    let hasDrawing = false;
+
+    function initDrawCanvas() {
+      dCtx.fillStyle = "#020617";
+      dCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+      dCtx.lineWidth = 18;
+      dCtx.lineCap = "round";
+      dCtx.strokeStyle = "#f9fafb";
+    }
+
+    initDrawCanvas();
+
+    function getPos(e) {
+      const rect = drawCanvas.getBoundingClientRect();
+      if (e.touches) {
+        return {
+          x: e.touches[0].clientX - rect.left,
+          y: e.touches[0].clientY - rect.top,
+        };
+      } else {
+        return {
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+        };
+      }
+    }
+
+    function startDraw(e) {
+      e.preventDefault();
+      drawing = true;
+      hasDrawing = true;
+      const pos = getPos(e);
+      dCtx.beginPath();
+      dCtx.moveTo(pos.x, pos.y);
+    }
+
+    function moveDraw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      const pos = getPos(e);
+      dCtx.lineTo(pos.x, pos.y);
+      dCtx.stroke();
+    }
+
+    function endDraw(e) {
+      if (!drawing) return;
+      e.preventDefault();
+      drawing = false;
+    }
+
+    drawCanvas.addEventListener("mousedown", startDraw);
+    drawCanvas.addEventListener("mousemove", moveDraw);
+    drawCanvas.addEventListener("mouseup", endDraw);
+    drawCanvas.addEventListener("mouseleave", endDraw);
+
+    drawCanvas.addEventListener("touchstart", startDraw, { passive: false });
+    drawCanvas.addEventListener("touchmove", moveDraw, { passive: false });
+    drawCanvas.addEventListener("touchend", endDraw, { passive: false });
+
+    document.getElementById("clear-draw").addEventListener("click", () => {
+      initDrawCanvas();
+      hasDrawing = false;
+      setPredictionState("No prediction yet.", "", null);
+    });
+
+    // Send drawing to backend
+    document.getElementById("predict-draw").addEventListener("click", () => {
+      if (!hasDrawing) {
+        alert("Please draw a digit first.");
+        return;
+      }
+      setPredictionState("Predicting from drawing…", "", null);
+
+      drawCanvas.toBlob((blob) => {
+        const formData = new FormData();
+        formData.append("file", blob, "drawing.png");
+
+        fetch("/predict", {
+          method: "POST",
+          body: formData,
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data.error) {
+              setPredictionState("Error: " + data.error, "", null);
+            } else {
+              const digit = data.digit;
+              const conf = (data.confidence * 100).toFixed(2);
+              setPredictionState(
+                "Model prediction: " + digit,
+                "Confidence: " + conf + "%",
+                digit
+              );
+            }
+          })
+          .catch((err) => {
+            console.error(err);
+            setPredictionState("Something went wrong.", "", null);
+          });
+      });
+    });
+
+    // ========== Upload logic ==========
+    const fileInput = document.getElementById("file-input");
+    const previewCanvas = document.getElementById("preview-canvas");
+    const pCtx = previewCanvas.getContext("2d");
+    let selectedFile = null;
+
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      selectedFile = file;
+
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const img = new Image();
+        img.onload = function () {
+          const maxSize = 220;
+          let w = img.width;
+          let h = img.height;
+          if (w > h) {
+            if (w > maxSize) {
+              h = (h * maxSize) / w;
+              w = maxSize;
+            }
+          } else {
+            if (h > maxSize) {
+              w = (w * maxSize) / h;
+              h = maxSize;
+            }
+          }
+          previewCanvas.width = w;
+          previewCanvas.height = h;
+          pCtx.clearRect(0, 0, w, h);
+          pCtx.drawImage(img, 0, 0, w, h);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById("predict-upload").addEventListener("click", () => {
+      if (!selectedFile) {
+        alert("Please choose an image first.");
+        return;
+      }
+
+      setPredictionState("Predicting from uploaded image…", "", null);
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+
+      fetch("/predict", {
+        method: "POST",
+        body: formData,
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.error) {
+            setPredictionState("Error: " + data.error, "", null);
+          } else {
+            const digit = data.digit;
+            const conf = (data.confidence * 100).toFixed(2);
+            setPredictionState(
+              "Model prediction: " + digit,
+              "Confidence: " + conf + "%",
+              digit
+            );
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          setPredictionState("Something went wrong.", "", null);
+        });
+    });
+  </script>
+</body>
+</html>
